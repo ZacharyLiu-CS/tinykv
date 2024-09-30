@@ -21,14 +21,14 @@ func (server *Server) RawGet(_ context.Context, req *kvrpcpb.RawGetRequest) (*kv
 	cf := req.Cf
 	key := req.Key
 	value, err := reader.GetCF(cf, key)
+
 	if err != nil {
 		return &kvrpcpb.RawGetResponse{}, err
 	}
 
-	notFound := false
-	if value == nil {
-		notFound = true
-	}
+	// keep consistent with the GetCF in StandAloneReader
+	notFound := (value == nil)
+
 	resp := &kvrpcpb.RawGetResponse{
 		Value:    value,
 		NotFound: notFound,
@@ -46,10 +46,12 @@ func (server *Server) RawPut(_ context.Context, req *kvrpcpb.RawPutRequest) (*kv
 		Value: req.Value,
 		Cf:    req.Cf,
 	}
-	modi := storage.Modify{
+	modify := storage.Modify{
 		Data: put,
 	}
-	batch := []storage.Modify{modi}
+
+	// build the put struct
+	batch := []storage.Modify{modify}
 
 	err := server.storage.Write(req.Context, batch)
 
@@ -67,10 +69,11 @@ func (server *Server) RawDelete(_ context.Context, req *kvrpcpb.RawDeleteRequest
 		Key: req.Key,
 		Cf:  req.Cf,
 	}
-	modi := storage.Modify{
+	modify := storage.Modify{
 		Data: del,
 	}
-	batch := []storage.Modify{modi}
+	// build the delete struct
+	batch := []storage.Modify{modify}
 
 	err := server.storage.Write(req.Context, batch)
 
@@ -91,10 +94,14 @@ func (server *Server) RawScan(_ context.Context, req *kvrpcpb.RawScanRequest) (*
 
 	iter := reader.IterCF(req.Cf)
 	var kvs []*kvrpcpb.KvPair
+
+	// call iter.next() in a loop until the limit is reached or data is not valid.
 	cnt := uint32(0)
 	for iter.Seek(req.StartKey); iter.Valid(); iter.Next() {
 		item := iter.Item()
 		val, _ := item.Value()
+
+		//  pack all the results into an array
 		kvs = append(kvs, &kvrpcpb.KvPair{
 			Key:   item.Key(),
 			Value: val,

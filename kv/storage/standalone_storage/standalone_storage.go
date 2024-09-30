@@ -34,6 +34,7 @@ func NewStandAloneStorage(conf *config.Config) *StandAloneStorage {
 	kvPath := path.Join(dbPath, "kv_data")
 	raftPath := path.Join(dbPath, "raft_meta")
 
+	// Create DB engine of KV and Raft data
 	kvEngine := engine_util.CreateDB(kvPath, false)
 	raftEngine := engine_util.CreateDB(raftPath, false)
 
@@ -68,6 +69,7 @@ func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) 
 	for _, v := range batch {
 		switch v.Data.(type) {
 		case storage.Put:
+			// convert to Put data
 			put := v.Data.(storage.Put)
 			key := put.Key
 			value := put.Value
@@ -77,6 +79,7 @@ func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) 
 				return err
 			}
 		case storage.Delete:
+			// convert to Delete data
 			del := v.Data.(storage.Delete)
 			key := del.Key
 			cf := del.Cf
@@ -93,6 +96,7 @@ func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) 
 func (s *StandAloneReader) GetCF(cf string, key []byte) ([]byte, error) {
 	value, err := engine_util.GetCFFromTxn(s.txn, cf, key)
 
+	// for test case, if the err is not nil, the value is nil
 	if err == badger.ErrKeyNotFound {
 		return nil, nil
 	}
